@@ -4,6 +4,11 @@
 *.files
 *.includes
 *.swp
-factorial.exe
-factorial-debug.exe
+*.o
+*.exe
+factorial
+factorial-debug
+divide
+divide-debug
+
 
