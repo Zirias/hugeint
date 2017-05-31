@@ -4,13 +4,15 @@
 
 #include "hugeint.h"
 
-#define UINTMAX_T_BITS (CHAR_BIT * sizeof(uintmax_t))
-#define HUGEINT_INITIAL_ELEMENTS 4
+#define HUGEINT_ELEMENT_BITS (CHAR_BIT * sizeof(unsigned int))
+
+// start each new "hugeint" with 256 bits:
+#define HUGEINT_INITIAL_ELEMENTS (256 / HUGEINT_ELEMENT_BITS)
 
 struct hugeint
 {
     size_t n;
-    uintmax_t e[];
+    unsigned int e[];
 };
 
 static void *xmalloc(size_t size)
@@ -51,8 +53,8 @@ static size_t copyNum(char **out, const char *str)
 static hugeint *hugeint_expand(hugeint *self)
 {
     hugeint *expanded = xrealloc(self,
-            sizeof(hugeint) + 2 * self->n * sizeof(uintmax_t));
-    memset(&(expanded->e[expanded->n]), 0, expanded->n * sizeof(uintmax_t));
+            sizeof(hugeint) + 2 * self->n * sizeof(unsigned int));
+    memset(&(expanded->e[expanded->n]), 0, expanded->n * sizeof(unsigned int));
     expanded->n *= 2;
     return expanded;
 }
@@ -60,21 +62,21 @@ static hugeint *hugeint_expand(hugeint *self)
 hugeint *hugeint_create(void)
 {
     hugeint *self = xmalloc(sizeof(hugeint)
-            + HUGEINT_INITIAL_ELEMENTS * sizeof(uintmax_t));
+            + HUGEINT_INITIAL_ELEMENTS * sizeof(unsigned int));
     memset(self, 0, sizeof(hugeint)
-            + HUGEINT_INITIAL_ELEMENTS * sizeof(uintmax_t));
+            + HUGEINT_INITIAL_ELEMENTS * sizeof(unsigned int));
     self->n = HUGEINT_INITIAL_ELEMENTS;
     return self;
 }
 
 hugeint *hugeint_clone(const hugeint *self)
 {
-    hugeint *clone = xmalloc(sizeof(hugeint) + self->n * sizeof(uintmax_t));
-    memcpy(clone, self, sizeof(hugeint) + self->n * sizeof(uintmax_t));
+    hugeint *clone = xmalloc(sizeof(hugeint) + self->n * sizeof(unsigned int));
+    memcpy(clone, self, sizeof(hugeint) + self->n * sizeof(unsigned int));
     return clone;
 }
 
-hugeint *hugeint_fromUint(uintmax_t val)
+hugeint *hugeint_fromUint(unsigned int val)
 {
     hugeint *self = hugeint_create();
     self->e[0] = val;
@@ -91,7 +93,7 @@ hugeint *hugeint_parse(const char *str)
     size_t scanstart = 0;
     size_t n = 0;
     size_t i;
-    uintmax_t mask = 1;
+    unsigned int mask = 1;
 
     for (i = 0; i < bcdsize; ++i) buf[i] -= '0';
 
@@ -122,7 +124,7 @@ hugeint *hugeint_parse(const char *str)
 }
 
 hugeint *hugeint_ladd_cutoverflow(size_t n, const hugeint *const *summands,
-        uintmax_t *residue)
+        unsigned int *residue)
 {
     hugeint *result = hugeint_create();
 
@@ -136,11 +138,11 @@ hugeint *hugeint_ladd_cutoverflow(size_t n, const hugeint *const *summands,
         }
     }
 
-    uintmax_t res = 0;
+    unsigned int res = 0;
 
     for (i = 0; i < result->n; ++i)
     {
-        for (uintmax_t bit = 1; bit; bit <<= 1)
+        for (unsigned int bit = 1; bit; bit <<= 1)
         {
             for (size_t j = 0; j < n; ++j)
             {
@@ -158,7 +160,7 @@ hugeint *hugeint_ladd_cutoverflow(size_t n, const hugeint *const *summands,
 
 hugeint *hugeint_ladd(size_t n, const hugeint *const *summands)
 {
-    uintmax_t res;
+    unsigned int res;
     hugeint *result = hugeint_ladd_cutoverflow(n, summands, &res);
 
     if (res)
@@ -224,7 +226,7 @@ hugeint *hugeint_sub(const hugeint *self, const hugeint *diff)
     hugeint *tmp = hugeint_2comp(diff);
     if (freediff) free((hugeint *)diff);
 
-    uintmax_t res;
+    unsigned int res;
     hugeint *result = hugeint_ladd_cutoverflow(2,
             (const hugeint *const []){self, tmp}, &res);
     free(tmp);
@@ -249,7 +251,7 @@ hugeint *hugeint_shiftleft(const hugeint *hi, const hugeint *positions)
     {
         count = 0;
     }
-    uintmax_t highbit = UINTMAX_C(1) << (UINTMAX_T_BITS - 1);
+    unsigned int highbit = 1U << (HUGEINT_ELEMENT_BITS - 1);
     do
     {
         if (result->e[result->n - 1] & highbit)
@@ -283,7 +285,7 @@ hugeint *hugeint_shiftright(const hugeint *hi, const hugeint *positions)
     {
         count = 0;
     }
-    uintmax_t highbit = UINTMAX_C(1) << (UINTMAX_T_BITS - 1);
+    unsigned int highbit = 1U << (HUGEINT_ELEMENT_BITS - 1);
     do
     {
         int incelement = 0;
@@ -304,13 +306,13 @@ hugeint *hugeint_shiftright(const hugeint *hi, const hugeint *positions)
 
 hugeint *hugeint_mult(const hugeint *hi, const hugeint *factor)
 {
-    hugeint **summands=xmalloc(factor->n * UINTMAX_T_BITS * sizeof(hugeint *));
+    hugeint **summands=xmalloc(factor->n * HUGEINT_ELEMENT_BITS * sizeof(hugeint *));
     size_t n = 0;
     hugeint *bitnum = hugeint_create();
 
     for (size_t i = 0; i < factor->n; ++i)
     {
-        for (uintmax_t bit = 1; bit; bit <<= 1)
+        for (unsigned int bit = 1; bit; bit <<= 1)
         {
             if (factor->e[i] & bit)
             {
@@ -414,7 +416,7 @@ int hugeint_compare(const hugeint *self, const hugeint *other)
     return 0;
 }
 
-int hugeint_compareUint(const hugeint *self, uintmax_t other)
+int hugeint_compareUint(const hugeint *self, unsigned int other)
 {
     for (size_t i = self->n - 1; i > 0; --i)
     {
@@ -460,7 +462,7 @@ char *hugeint_toString(const hugeint *self)
         return zero;
     }
 
-    size_t nbits = UINTMAX_T_BITS * self->n;
+    size_t nbits = HUGEINT_ELEMENT_BITS * self->n;
     size_t bcdsize = nbits/3;
     size_t scanstart = bcdsize - 2;
     char *buf = xmalloc(bcdsize + 1);
@@ -471,7 +473,7 @@ char *hugeint_toString(const hugeint *self)
     i = self->n;
     while(i--)
     {
-        uintmax_t mask = UINTMAX_C(1) << (UINTMAX_T_BITS - 1);
+        unsigned int mask = 1U << (HUGEINT_ELEMENT_BITS - 1);
         while (mask)
         {
             int bit = !!(self->e[i] & mask);

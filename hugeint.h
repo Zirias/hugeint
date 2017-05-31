@@ -2,17 +2,17 @@
 #define HUGEINT_H
 
 #include <stdarg.h>
-#include <stdint.h>
+#include <stddef.h>
 
 typedef struct hugeint hugeint;
 
 hugeint *hugeint_create(void);
 hugeint *hugeint_clone(const hugeint *self);
-hugeint *hugeint_fromUint(uintmax_t val);
+hugeint *hugeint_fromUint(unsigned int val);
 hugeint *hugeint_parse(const char *str);
 
 hugeint *hugeint_ladd_cutoverflow(size_t n, const hugeint *const *summands,
-        uintmax_t *residue);
+        unsigned int *residue);
 hugeint *hugeint_ladd(size_t n, const hugeint *const *summands);
 hugeint *hugeint_vadd(size_t n, va_list ap);
 hugeint *hugeint_add(size_t n, ...);
@@ -26,7 +26,7 @@ hugeint *hugeint_div(const hugeint *hi, const hugeint *divisor,
 
 int hugeint_isZero(const hugeint *self);
 int hugeint_compare(const hugeint *self, const hugeint *other);
-int hugeint_compareUint(const hugeint *self, uintmax_t other);
+int hugeint_compareUint(const hugeint *self, unsigned int other);
 
 void hugeint_increment(hugeint **self);
 void hugeint_decrement(hugeint **self);
