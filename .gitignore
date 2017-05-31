@@ -1,7 +1,9 @@
 *.config
 *.creator
+*.user
 *.files
 *.includes
+*.swp
 factorial.exe
 factorial-debug.exe
 

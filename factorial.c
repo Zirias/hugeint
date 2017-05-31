@@ -6,6 +6,7 @@
 #include <string.h>
 
 #define UINTMAX_T_BITS (CHAR_BIT * sizeof(uintmax_t))
+#define HUGEINT_INITIAL_ELEMENTS 4
 
 typedef struct hugeint
 {
@@ -29,9 +30,11 @@ static void *xrealloc(void *m, size_t size)
 
 hugeint *hugeint_create(void)
 {
-    hugeint *self = xmalloc(sizeof(hugeint) + 4 * sizeof(uintmax_t));
-    memset(self, 0, sizeof(hugeint) + 4 * sizeof(uintmax_t));
-    self->n = 4;
+    hugeint *self = xmalloc(sizeof(hugeint)
+            + HUGEINT_INITIAL_ELEMENTS * sizeof(uintmax_t));
+    memset(self, 0, sizeof(hugeint)
+            + HUGEINT_INITIAL_ELEMENTS * sizeof(uintmax_t));
+    self->n = HUGEINT_INITIAL_ELEMENTS;
     return self;
 }
 
@@ -160,7 +163,15 @@ hugeint *hugeint_2comp(hugeint *self)
 hugeint *hugeint_sub(hugeint *self, hugeint *diff)
 {
     if (diff->n > self->n) return 0;
+    int freediff = 0;
+    if (diff->n < self->n)
+    {
+        freediff = 1;
+        diff = hugeint_clone(diff);
+        while (diff->n < self->n) diff = hugeint_expand(diff);
+    }
     hugeint *tmp = hugeint_2comp(diff);
+    if (freediff) free(diff);
 
     uintmax_t res;
     hugeint *result = hugeint_ladd_cutoverflow(2,
@@ -412,8 +423,7 @@ char *hugeint_toString(hugeint *self)
         if (len == cap)
         {
             cap *= 2;
-            char *tmp = xrealloc(buf, cap);
-            buf = tmp;
+            buf = xrealloc(buf, cap);
         }
         buf[len++] = ((char) mod->e[0]) + '0';
         free(mod);
