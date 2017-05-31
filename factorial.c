@@ -397,6 +397,14 @@ hugeint *hugeint_parse(const char *str)
 
 char *hugeint_toString(hugeint *self)
 {
+    if (hugeint_isZero(self))
+    {
+        char *zero = malloc(2);
+        zero[0] = '0';
+        zero[1] = 0;
+        return zero;
+    }
+
     size_t nbits = UINTMAX_T_BITS * self->n;
     size_t bcdsize = nbits/3;
     size_t scanstart = bcdsize - 2;
