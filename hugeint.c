@@ -414,6 +414,17 @@ int hugeint_compare(const hugeint *self, const hugeint *other)
     return 0;
 }
 
+int hugeint_compareUint(const hugeint *self, uintmax_t other)
+{
+    for (size_t i = self->n - 1; i > 0; --i)
+    {
+        if (self->e[i]) return 1;
+    }
+    if (self->e[0] > other) return 1;
+    if (self->e[0] < other) return -1;
+    return 0;
+}
+
 void hugeint_increment(hugeint **self)
 {
     int carry = 0;

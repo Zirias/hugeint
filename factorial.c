@@ -7,7 +7,7 @@ hugeint *factorial(hugeint *self)
     hugeint *result = hugeint_fromUint(1);
     hugeint *factor = hugeint_clone(self);
 
-    while (!hugeint_isZero(factor))
+    while (hugeint_compareUint(factor, 1) > 0)
     {
         hugeint *tmp = hugeint_mult(result, factor);
         free(result);
@@ -27,10 +27,10 @@ int main(int argc, char **argv)
     }
     hugeint *number = hugeint_parse(argv[1]);
     hugeint *result = factorial(number);
+    free(number);
     char *factstr = hugeint_toString(result);
+    free(result);
     puts(factstr);
     free(factstr);
-    free(result);
-    free(number);
     return 0;
 }

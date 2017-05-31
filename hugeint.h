@@ -26,6 +26,7 @@ hugeint *hugeint_div(const hugeint *hi, const hugeint *divisor,
 
 int hugeint_isZero(const hugeint *self);
 int hugeint_compare(const hugeint *self, const hugeint *other);
+int hugeint_compareUint(const hugeint *self, uintmax_t other);
 
 void hugeint_increment(hugeint **self);
 void hugeint_decrement(hugeint **self);

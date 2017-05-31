@@ -13,22 +13,21 @@ int main(int argc, char **argv)
     hugeint *divisor = hugeint_parse(argv[2]);
     hugeint *remain;
     hugeint *result = hugeint_div(dividend, divisor, &remain);
+    free(divisor);
+    free(dividend);
     if (!result)
     {
-        free(divisor);
-        free(dividend);
         fputs("Error: division unsuccessful.\n", stderr);
         return 1;
     }
     char *resultstr = hugeint_toString(result);
+    free(result);
     char *remainstr = hugeint_toString(remain);
+    free(remain);
     puts(resultstr);
+    free(resultstr);
     fputs("remainder: ", stdout);
     puts(remainstr);
     free(remainstr);
-    free(resultstr);
-    free(result);
-    free(divisor);
-    free(dividend);
     return 0;
 }
