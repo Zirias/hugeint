@@ -397,47 +397,50 @@ hugeint *hugeint_parse(const char *str)
 
 char *hugeint_toString(hugeint *self)
 {
-    char *buf;
-    size_t cap = 1024;
-    size_t len = 0;
+    size_t nbits = UINTMAX_T_BITS * self->n;
+    size_t bcdsize = nbits/3;
+    size_t scanstart = bcdsize - 2;
+    char *buf = xmalloc(bcdsize + 1);
+    memset(buf, 0, bcdsize + 1);
 
-    if (hugeint_isZero(self))
+    size_t i, j;
+
+    i = self->n;
+    while(i--)
     {
-        buf = xmalloc(2);
-        buf[0] = '0';
-        buf[1] = '\0';
-        return buf;
-    }
-
-    buf = xmalloc(cap);
-
-    hugeint *mod;
-    hugeint *current = hugeint_clone(self);
-    hugeint *ten = hugeint_fromUint(10);
-
-    while (!hugeint_isZero(current))
-    {
-        hugeint *tmp = hugeint_div(current, ten, &mod);
-        free(current);
-        current = tmp;
-        if (len == cap)
+        uintmax_t mask = UINTMAX_C(1) << (UINTMAX_T_BITS - 1);
+        while (mask)
         {
-            cap *= 2;
-            buf = xrealloc(buf, cap);
+            int bit = !!(self->e[i] & mask);
+            for (j = scanstart; j < bcdsize; ++j)
+            {
+                if (buf[j] > 4) buf[j] += 3;
+            }
+            if (buf[scanstart] > 7) scanstart -= 1;
+            for (j = scanstart; j < bcdsize - 1; ++j)
+            {
+                buf[j] <<= 1;
+                buf[j] &= 0xf;
+                buf[j] |= (buf[j+1] > 7);
+            }
+            buf[bcdsize-1] <<= 1;
+            buf[bcdsize-1] &= 0xf;
+            buf[bcdsize-1] |= bit;
+            mask >>= 1;
         }
-        buf[len++] = ((char) mod->e[0]) + '0';
-        free(mod);
     }
-    free(ten);
-    free(current);
-    char *result = xmalloc(len + 1);
-    result[len] = '\0';
-    for (size_t i = 0; i < len; ++i)
+
+    for (i = 0; i < bcdsize - 1; ++i)
     {
-        result[i] = buf[len - i - 1];
+        if (buf[i]) break;
     }
-    free(buf);
-    return result;
+
+    bcdsize -= i;
+    memmove(buf, buf + i, bcdsize + 1);
+
+    for (i = 0; i < bcdsize; ++i) buf[i] += '0';
+    buf = xrealloc(buf, bcdsize + 1);
+    return buf;
 }
 
 hugeint *hugeint_factorial(hugeint *self)
