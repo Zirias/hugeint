@@ -4,11 +4,7 @@
 *.files
 *.includes
 *.swp
-*.o
-*.exe
-factorial
-factorial-debug
-divide
-divide-debug
-
+*.cfg
+obj/
+bin/
 
