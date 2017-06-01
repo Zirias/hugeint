@@ -16,11 +16,11 @@ hugeint *hugeint_vsum(size_t n, va_list ap);
 hugeint *hugeint_sum(size_t n, ...);
 #define hugeint_add(a, b) hugeint_sum(2, (a), (b))
 
-hugeint *hugeint_sub(const hugeint *self, const hugeint *diff);
+hugeint *hugeint_sub(const hugeint *minuend, const hugeint *subtrahend);
 
-hugeint *hugeint_mult(const hugeint *hi, const hugeint *factor);
-hugeint *hugeint_div(const hugeint *hi, const hugeint *divisor,
-        hugeint **mod);
+hugeint *hugeint_mult(const hugeint *a, const hugeint *b);
+hugeint *hugeint_div(const hugeint *dividend, const hugeint *divisor,
+        hugeint **remainder);
 
 int hugeint_isZero(const hugeint *self);
 int hugeint_compare(const hugeint *self, const hugeint *other);

@@ -231,14 +231,14 @@ static hugeint *hugeint_2comp(const hugeint *self, size_t size)
     return result;
 }
 
-hugeint *hugeint_sub(const hugeint *self, const hugeint *diff)
+hugeint *hugeint_sub(const hugeint *minuend, const hugeint *subtrahend)
 {
-    if (diff->n > self->n) return 0;
-    hugeint *tmp = hugeint_2comp(diff, self->n);
+    if (subtrahend->n > minuend->n) return 0;
+    hugeint *tmp = hugeint_2comp(subtrahend, minuend->n);
 
     hugeint *res;
     hugeint *result = hugeint_lsum_cutoverflow(2,
-            (const hugeint *const []){self, tmp}, &res);
+            (const hugeint *const []){minuend, tmp}, &res);
     free(tmp);
     if (!res)
     {
@@ -255,19 +255,26 @@ hugeint *hugeint_sub(const hugeint *self, const hugeint *diff)
     return result;
 }
 
-hugeint *hugeint_mult(const hugeint *hi, const hugeint *factor)
+hugeint *hugeint_mult(const hugeint *a, const hugeint *b)
 {
-    hugeint **summands=xmalloc(factor->n * HUGEINT_ELEMENT_BITS * sizeof(hugeint *));
+    if (hugeint_compare(a, b) < 0)
+    {
+        const hugeint *tmp = b;
+        b = a;
+        a = tmp;
+    }
+
+    hugeint **summands=xmalloc(b->n * HUGEINT_ELEMENT_BITS * sizeof(hugeint *));
     size_t n = 0;
     size_t bitnum = 0;
 
-    for (size_t i = 0; i < factor->n; ++i)
+    for (size_t i = 0; i < b->n; ++i)
     {
         for (unsigned int bit = 1; bit; bit <<= 1)
         {
-            if (factor->e[i] & bit)
+            if (b->e[i] & bit)
             {
-                hugeint *summand = hugeint_clone(hi);
+                hugeint *summand = hugeint_clone(a);
                 hugeint_shiftleft(&summand, bitnum);
                 summands[n++] = summand;
             }
