@@ -11,6 +11,7 @@ static hugeint *hugeint_createSized(size_t size);
 static hugeint *hugeint_scale(hugeint *self, size_t newSize);
 static hugeint *hugeint_lsum_cutoverflow(size_t n,
         const hugeint *const *summands, hugeint **residue);
+static hugeint *hugeint_2comp(const hugeint *self, size_t size);
 
 struct hugeint
 {
@@ -217,33 +218,23 @@ hugeint *hugeint_sum(size_t n, ...)
     return result;
 }
 
-hugeint *hugeint_2comp(const hugeint *self)
+static hugeint *hugeint_2comp(const hugeint *self, size_t size)
 {
-    hugeint *tmp = hugeint_clone(self);
-    if (hugeint_isZero(tmp)) return tmp;
-    hugeint *one = hugeint_fromUint(1);
-    for (size_t i = 0; i < tmp->n; ++i)
+    hugeint *result = hugeint_createSized(size);
+    if (hugeint_isZero(self)) return result;
+    for (size_t i = 0; i < size; ++i)
     {
-        tmp->e[i] = ~(tmp->e[i]);
+        if (i >= self->n) result->e[i] = ~0U;
+        else result->e[i] = ~(self->e[i]);
     }
-    hugeint *result = hugeint_add(tmp, one);
-    free(tmp);
-    free(one);
+    hugeint_increment(&result);
     return result;
 }
 
 hugeint *hugeint_sub(const hugeint *self, const hugeint *diff)
 {
     if (diff->n > self->n) return 0;
-    int freediff = 0;
-    if (diff->n < self->n)
-    {
-        freediff = 1;
-        diff = hugeint_clone(diff);
-        diff = hugeint_scale((hugeint *)diff, self->n);
-    }
-    hugeint *tmp = hugeint_2comp(diff);
-    if (freediff) free((hugeint *)diff);
+    hugeint *tmp = hugeint_2comp(diff, self->n);
 
     hugeint *res;
     hugeint *result = hugeint_lsum_cutoverflow(2,
