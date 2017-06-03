@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <pocas/test/test.h>
-#include "../hugeint.h"
+#include "../hugeint/hugeint.h"
 
 PT_TESTCLASS(hugeint);
 

@@ -400,12 +400,12 @@ hugeint *hugeint_mult(const hugeint *a, const hugeint *b)
         fflush(stderr);
         free(as);
         free(bs);
-        __debugbreak();
+	__builtin_trap();
     }
     free(p3);
     p3 = tmp;
     tmp = hugeint_sub(p3, p1);
-    if (!tmp) __debugbreak();
+    if (!tmp) __builtin_trap();
     free(p3);
     p3 = tmp;
     hugeint_shiftleft(&p3, nl * HUGEINT_ELEMENT_BITS);

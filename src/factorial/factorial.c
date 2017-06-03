@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "hugeint.h"
+#include "../hugeint/hugeint.h"
 
 hugeint *factorial(hugeint *self)
 {
