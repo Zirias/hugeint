@@ -5,6 +5,9 @@
 *.includes
 *.swp
 *.cfg
+*.dll
+*.exe
 obj/
 bin/
-
+lib/
+test/

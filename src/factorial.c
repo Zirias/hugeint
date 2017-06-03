@@ -12,6 +12,13 @@ hugeint *factorial(hugeint *self)
         hugeint *tmp = hugeint_mult(result, factor);
         free(result);
         result = tmp;
+#if (0)
+        char *fs = hugeint_toString(factor);
+        char *rs = hugeint_toString(result);
+        fprintf(stderr, "[DEBUG] %s: %s\n", fs, rs);
+        free(rs);
+        free(fs);
+#endif
         hugeint_decrement(&factor);
     }
     free(factor);
