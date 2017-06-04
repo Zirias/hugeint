@@ -5,7 +5,6 @@
 #include "hugeint.h"
 
 #define HUGEINT_ELEMENT_BITS (CHAR_BIT * sizeof(unsigned int))
-//#define HUGEINT_INITIAL_ELEMENTS 1
 #define HUGEINT_INITIAL_ELEMENTS (256 / HUGEINT_ELEMENT_BITS)
 
 struct hugeint
@@ -149,8 +148,9 @@ hugeint *hugeint_parse(const char *str)
     return result;
 }
 
-static unsigned char hexToNibble(unsigned char hex)
+static unsigned char hexNibble(const char *str)
 {
+    unsigned char hex = *str;
     if (hex >= 'a' && hex <='f')
     {
         hex -= ('a' - 10);
@@ -170,31 +170,23 @@ static unsigned char hexToNibble(unsigned char hex)
     return hex;
 }
 
-static unsigned char hexByte(const char *str)
-{
-    unsigned char hi = hexToNibble(*str);
-    unsigned char lo = hexToNibble(str[1]);
-    return (hi<<4)|lo;
-}
-
 hugeint *hugeint_parseHex(const char *str)
 {
     size_t len = strlen(str);
-    size_t bytes = len / 2;
-    size_t n = sizeof(unsigned int) / bytes;
-    size_t leading = sizeof(unsigned int) % bytes;
+    size_t bits = len * 4;
+    size_t n = HUGEINT_ELEMENT_BITS / bits;
+    size_t leading = HUGEINT_ELEMENT_BITS % bits;
     size_t i = n;
     if (leading) ++n;
     hugeint *result = hugeint_createSized(n);
     if (leading)
     {
-        unsigned int shift = leading * CHAR_BIT;
+        unsigned int shift = leading;
         while (shift)
         {
-            shift -= CHAR_BIT;
-            unsigned char byte = hexByte(str);
-            str += 2;
-            result->e[i] |= ((unsigned int)byte << shift);
+            shift -= 4;
+            unsigned char nibble = hexNibble(str++);
+            result->e[i] |= ((unsigned int)nibble << shift);
         }
     }
     while (i)
@@ -203,10 +195,9 @@ hugeint *hugeint_parseHex(const char *str)
         unsigned int shift = HUGEINT_ELEMENT_BITS;
         while (shift)
         {
-            shift -= CHAR_BIT;
-            unsigned char byte = hexByte(str);
-            str += 2;
-            result->e[i] |= ((unsigned int)byte << shift);
+            shift -= 4;
+            unsigned char nibble = hexNibble(str++);
+            result->e[i] |= ((unsigned int)nibble << shift);
         }
     }
     return result;
@@ -234,7 +225,7 @@ hugeint *hugeint_add(const hugeint *a, const hugeint *b)
     for (i = b->n; i < a->n; ++i)
     {
         result->e[i] = a->e[i] + carry;
-        carry = !result->e[i];
+        carry =  carry && !result->e[i];
     }
     if (carry)
     {
@@ -274,15 +265,35 @@ hugeint *hugeint_sub(const hugeint *minuend, const hugeint *subtrahend)
 static hugeint *multUint(unsigned int a, unsigned int b)
 {
     if (!a || !b) return hugeint_create();
-    unsigned int maxDirectFactor = (1U << (HUGEINT_ELEMENT_BITS / 2)) - 1;
-    if (a < maxDirectFactor && b < maxDirectFactor)
+    if (a < b)
+    {
+	unsigned int tmp = a;
+	a = b;
+	b = tmp;
+    }
+    unsigned int halfMask = (1U << (HUGEINT_ELEMENT_BITS / 2)) - 1;
+    unsigned int maskA = halfMask;
+    unsigned int maskB = halfMask;
+    unsigned int direct = 0;
+    while (maskB)
+    {
+	if (a > maskA && b > maskB) break;
+	if (a <= maskA && b <= maskB)
+	{
+	    direct = 1;
+	    break;
+	}
+	maskA = (maskA << 1) | 1;
+	maskB >>= 1;
+    }
+    if (direct)
     {
         return hugeint_fromUint(a * b);
     }
     unsigned int ah = a >> (HUGEINT_ELEMENT_BITS / 2);
-    unsigned int al = a & maxDirectFactor;
+    unsigned int al = a & halfMask;
     unsigned int bh = b >> (HUGEINT_ELEMENT_BITS / 2);
-    unsigned int bl = b & maxDirectFactor;
+    unsigned int bl = b & halfMask;
 
     hugeint *p1 = multUint(ah, bh);
     hugeint *p2 = multUint(al, bl);
@@ -340,8 +351,6 @@ static hugeint *multUint(unsigned int a, unsigned int b)
     return p3;
 }
 
-#include <stdio.h>
-
 hugeint *hugeint_mult(const hugeint *a, const hugeint *b)
 {
     if (hugeint_isZero(a) || hugeint_isZero(b)) return hugeint_create();
@@ -392,20 +401,9 @@ hugeint *hugeint_mult(const hugeint *a, const hugeint *b)
     free(p3f1);
     free(p3f2);
     hugeint *tmp = hugeint_sub(p3, p2);
-    if (!tmp)
-    {
-        char *as = hugeint_toString(a);
-        char *bs = hugeint_toString(b);
-        fprintf(stderr, "[DEBUG] %s * %s\n", as, bs);
-        fflush(stderr);
-        free(as);
-        free(bs);
-	__builtin_trap();
-    }
     free(p3);
     p3 = tmp;
     tmp = hugeint_sub(p3, p1);
-    if (!tmp) __builtin_trap();
     free(p3);
     p3 = tmp;
     hugeint_shiftleft(&p3, nl * HUGEINT_ELEMENT_BITS);
@@ -670,3 +668,41 @@ char *hugeint_toString(const hugeint *self)
     buf = xrealloc(buf, bcdsize + 1);
     return buf;
 }
+
+char *hugeint_toHexString(const hugeint *self)
+{
+    size_t len = self->n * HUGEINT_ELEMENT_BITS / 4;
+
+    unsigned int mask = 0xfU << (HUGEINT_ELEMENT_BITS - 4);
+    while (mask && !(self->e[self->n-1] & mask))
+    {
+	--len;
+	mask >>= 4;
+    }
+    if (!len)
+    {
+	char *result = malloc(2);
+	result[0] = '0';
+	result[1] = 0;
+	return result;
+    }
+
+    char *result = malloc(len + 1);
+    result[len] = 0;
+
+    size_t i = 0;
+    while (len)
+    {
+	unsigned int v = self->e[i];
+	for (unsigned int j = 0; j < HUGEINT_ELEMENT_BITS / 4; ++j)
+	{
+	    unsigned char nibble = v & 0xf;
+	    result[--len] = nibble > 9 ? nibble - 10 + 'a' : nibble + '0';
+	    if (!len) break;
+	    v >>= 4;
+	}
+	++i;
+    }
+    return result;
+}
+
