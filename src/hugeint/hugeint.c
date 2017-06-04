@@ -54,14 +54,16 @@ static hugeint *hugeint_scale(hugeint *self, size_t newSize)
     if (newSize == self->n) return self;
     if (newSize > self->s)
     {
+        size_t s = self->s;
+        while (newSize > s) s *= 2;
         self = xrealloc(self,
-                sizeof(hugeint) + newSize * sizeof(unsigned int));
-        self->s = newSize;
+                sizeof(hugeint) + s * sizeof(unsigned int));
+        self->s = s;
     }
     if (newSize > self->n)
     {
         memset(&(self->e[self->n]), 0,
-                (newSize - self->n) * sizeof(unsigned int));
+                (self->s - self->n) * sizeof(unsigned int));
     }
     else if (newSize < self->n)
     {
@@ -212,53 +214,15 @@ hugeint *hugeint_add(const hugeint *a, const hugeint *b)
         b = tmp;
     }
 
-    hugeint *result = hugeint_createSized(a->n);
-    unsigned int carry = 0;
-    size_t i;
-    for (i = 0; i < b->n; ++i)
-    {
-        unsigned int v = a->e[i] + b->e[i];
-        unsigned int nextCarry = v < a->e[i];
-        result->e[i] = v + carry;
-        if (!carry || result->e[i]) carry = nextCarry;
-    }
-    for (i = b->n; i < a->n; ++i)
-    {
-        result->e[i] = a->e[i] + carry;
-        carry =  carry && !result->e[i];
-    }
-    if (carry)
-    {
-        result = hugeint_scale(result, a->n + 1);
-        result->e[a->n] = 1;
-    }
-
+    hugeint *result = hugeint_clone(a);
+    hugeint_addToSelf(&result, b);
     return result;
 }
 
 hugeint *hugeint_sub(const hugeint *minuend, const hugeint *subtrahend)
 {
-    if (hugeint_isZero(subtrahend)) return hugeint_clone(minuend);
-    int comp = hugeint_compare(minuend, subtrahend);
-    if (comp < 0) return 0;
-    if (comp == 0) return hugeint_create();
-
-    hugeint *result = hugeint_createSized(minuend->n);
-    for (size_t i = 0; i < minuend->n; ++i)
-    {
-        if (i >= subtrahend->n) result->e[i] = ~0U;
-        else result->e[i] = ~(subtrahend->e[i]);
-    }
-    hugeint_increment(&result);
-    unsigned int carry = 0;
-    for (size_t i = 0; i < minuend->n; ++i)
-    {
-        unsigned int v = result->e[i] + minuend->e[i];
-        unsigned int nextCarry = v < result->e[i];
-        result->e[i] = v + carry;
-        if (!carry || result->e[i]) carry = nextCarry;
-    }
-    hugeint_autoscale(&result);
+    hugeint *result = hugeint_clone(minuend);
+    hugeint_subFromSelf(&result, subtrahend);
     return result;
 }
 
@@ -267,24 +231,24 @@ static hugeint *multUint(unsigned int a, unsigned int b)
     if (!a || !b) return hugeint_create();
     if (a < b)
     {
-	unsigned int tmp = a;
-	a = b;
-	b = tmp;
+        unsigned int tmp = a;
+        a = b;
+        b = tmp;
     }
-    unsigned int halfMask = (1U << (HUGEINT_ELEMENT_BITS / 2)) - 1;
+    unsigned int halfMask = (1 << (HUGEINT_ELEMENT_BITS / 2)) - 1;
     unsigned int maskA = halfMask;
     unsigned int maskB = halfMask;
     unsigned int direct = 0;
     while (maskB)
     {
-	if (a > maskA && b > maskB) break;
-	if (a <= maskA && b <= maskB)
-	{
-	    direct = 1;
-	    break;
-	}
-	maskA = (maskA << 1) | 1;
-	maskB >>= 1;
+        if (a > maskA && b > maskB) break;
+        if (a <= maskA && b <= maskB)
+        {
+            direct = 1;
+            break;
+        }
+        maskA = (maskA << 1) | 1;
+        maskB >>= 1;
     }
     if (direct)
     {
@@ -326,26 +290,12 @@ static hugeint *multUint(unsigned int a, unsigned int b)
     {
         p3 = multUint(p3f1u, p3f2u);
     }
-    hugeint *tmp = hugeint_sub(p3, p2);
-    free(p3);
-    p3 = tmp;
-    tmp = hugeint_sub(p3, p1);
-    free(p3);
-    p3 = tmp;
-    hugeint_shiftleft(&p3, HUGEINT_ELEMENT_BITS - (HUGEINT_ELEMENT_BITS / 2));
-    hugeint_shiftleft(&p1, HUGEINT_ELEMENT_BITS);
-    if (!hugeint_isZero(p1))
-    {
-        tmp = hugeint_add(p3, p1);
-        free(p3);
-        p3 = tmp;
-    }
-    if (!hugeint_isZero(p2))
-    {
-        tmp = hugeint_add(p3, p2);
-        free(p3);
-        p3 = tmp;
-    }
+    hugeint_subFromSelf(&p3, p2);
+    hugeint_subFromSelf(&p3, p1);
+    hugeint_shiftLeft(&p3, HUGEINT_ELEMENT_BITS - (HUGEINT_ELEMENT_BITS / 2));
+    hugeint_shiftLeft(&p1, HUGEINT_ELEMENT_BITS);
+    hugeint_addToSelf(&p3, p1);
+    hugeint_addToSelf(&p3, p2);
     free(p2);
     free(p1);
     return p3;
@@ -391,35 +341,19 @@ hugeint *hugeint_mult(const hugeint *a, const hugeint *b)
 
     hugeint *p1 = hugeint_mult(ah, bh);
     hugeint *p2 = hugeint_mult(al, bl);
-    hugeint *p3f1 = hugeint_add(ah, al);
-    hugeint *p3f2 = hugeint_add(bh, bl);
-    free(ah);
+    hugeint_addToSelf(&ah, al);
+    hugeint_addToSelf(&bh, bl);
     free(al);
-    free(bh);
     free(bl);
-    hugeint *p3 = hugeint_mult(p3f1, p3f2);
-    free(p3f1);
-    free(p3f2);
-    hugeint *tmp = hugeint_sub(p3, p2);
-    free(p3);
-    p3 = tmp;
-    tmp = hugeint_sub(p3, p1);
-    free(p3);
-    p3 = tmp;
-    hugeint_shiftleft(&p3, nl * HUGEINT_ELEMENT_BITS);
-    hugeint_shiftleft(&p1, 2 * nl * HUGEINT_ELEMENT_BITS);
-    if (!hugeint_isZero(p1))
-    {
-        tmp = hugeint_add(p3, p1);
-        free(p3);
-        p3 = tmp;
-    }
-    if (!hugeint_isZero(p2))
-    {
-        tmp = hugeint_add(p3, p2);
-        free(p3);
-        p3 = tmp;
-    }
+    hugeint *p3 = hugeint_mult(ah, bh);
+    free(ah);
+    free(bh);
+    hugeint_subFromSelf(&p3, p2);
+    hugeint_subFromSelf(&p3, p1);
+    hugeint_shiftLeft(&p3, nl * HUGEINT_ELEMENT_BITS);
+    hugeint_shiftLeft(&p1, 2 * nl * HUGEINT_ELEMENT_BITS);
+    hugeint_addToSelf(&p3, p1);
+    hugeint_addToSelf(&p3, p2);
     free(p2);
     free(p1);
     return p3;
@@ -437,23 +371,19 @@ hugeint *hugeint_div(const hugeint *dividend, const hugeint *divisor,
 
     while (hugeint_compare(scaledDivisor, dividend) < 0)
     {
-        hugeint_shiftleft(&scaledDivisor, 1);
-        hugeint_shiftleft(&multiple, 1);
+        hugeint_shiftLeft(&scaledDivisor, 1);
+        hugeint_shiftLeft(&multiple, 1);
     }
 
     do
     {
         if (hugeint_compare(remain, scaledDivisor) >= 0)
         {
-            hugeint *tmp = hugeint_sub(remain, scaledDivisor);
-            free(remain);
-            remain = tmp;
-            tmp = hugeint_add(result, multiple);
-            free(result);
-            result = tmp;
+            hugeint_subFromSelf(&remain, scaledDivisor);
+            hugeint_addToSelf(&result, multiple);
         }
-        hugeint_shiftright(&scaledDivisor, 1);
-        hugeint_shiftright(&multiple, 1);
+        hugeint_shiftRight(&scaledDivisor, 1);
+        hugeint_shiftRight(&multiple, 1);
     } while (!hugeint_isZero(multiple));
 
     if (remainder) *remainder = remain;
@@ -540,7 +470,63 @@ void hugeint_decrement(hugeint **self)
     hugeint_autoscale(self);
 }
 
-void hugeint_shiftleft(hugeint **self, size_t positions)
+void hugeint_addToSelf(hugeint **self, const hugeint *other)
+{
+    if ((*self)->n < other->n)
+    {
+        *self = hugeint_scale(*self, other->n);
+    }
+
+    unsigned int carry = 0;
+    size_t i;
+    for (i = 0; i < other->n; ++i)
+    {
+        unsigned int v = (*self)->e[i] + other->e[i];
+        unsigned int nextCarry = v < other->e[i];
+        (*self)->e[i] = v + carry;
+        if (!carry || (*self)->e[i]) carry = nextCarry;
+    }
+    for (; i < (*self)->n; ++i)
+    {
+        (*self)->e[i] = (*self)->e[i] + carry;
+        carry = carry && !(*self)->e[i];
+    }
+    if (carry)
+    {
+        *self = hugeint_scale(*self, (*self)->n + 1);
+        (*self)->e[(*self)->n - 1] = 1;
+    }
+}
+
+void hugeint_subFromSelf(hugeint **self, const hugeint *other)
+{
+    if (hugeint_isZero(other)) return;
+    int comp = hugeint_compare(*self, other);
+    if (comp < 0)
+    {
+        free(*self);
+        *self = 0;
+        return;
+    }
+    if (comp == 0)
+    {
+        *self = hugeint_scale(*self, 1);
+        (*self)->e[0] = 0;
+        return;
+    }
+
+    unsigned int carry = 1;
+    for (size_t i = 0; i < (*self)->n; ++i)
+    {
+        unsigned int v = (*self)->e[i] + (i < other->n ? ~(other->e[i]) : ~0U);
+        unsigned int nextCarry = v < (*self)->e[i];
+        (*self)->e[i] = v + carry;
+        if (!carry || (*self)->e[i]) carry = nextCarry;
+    }
+    hugeint_autoscale(self);
+}
+
+void hugeint_shiftLeft(hugeint **self, size_t positions)
 {
     if (!positions) return;
     if (hugeint_isZero(*self)) return;
@@ -576,7 +562,7 @@ void hugeint_shiftleft(hugeint **self, size_t positions)
     hugeint_autoscale(self);
 }
 
-void hugeint_shiftright(hugeint **self, size_t positions)
+void hugeint_shiftRight(hugeint **self, size_t positions)
 {
     if (!positions) return;
     if (hugeint_isZero(*self)) return;
@@ -634,7 +620,7 @@ char *hugeint_toString(const hugeint *self)
     i = self->n;
     while(i--)
     {
-        unsigned int mask = 1U << (HUGEINT_ELEMENT_BITS - 1);
+        unsigned int mask = 1 << (HUGEINT_ELEMENT_BITS - 1);
         while (mask)
         {
             int bit = !!(self->e[i] & mask);
@@ -676,15 +662,15 @@ char *hugeint_toHexString(const hugeint *self)
     unsigned int mask = 0xfU << (HUGEINT_ELEMENT_BITS - 4);
     while (mask && !(self->e[self->n-1] & mask))
     {
-	--len;
-	mask >>= 4;
+        --len;
+        mask >>= 4;
     }
     if (!len)
     {
-	char *result = malloc(2);
-	result[0] = '0';
-	result[1] = 0;
-	return result;
+        char *result = malloc(2);
+        result[0] = '0';
+        result[1] = 0;
+        return result;
     }
 
     char *result = malloc(len + 1);
@@ -693,15 +679,15 @@ char *hugeint_toHexString(const hugeint *self)
     size_t i = 0;
     while (len)
     {
-	unsigned int v = self->e[i];
-	for (unsigned int j = 0; j < HUGEINT_ELEMENT_BITS / 4; ++j)
-	{
-	    unsigned char nibble = v & 0xf;
-	    result[--len] = nibble > 9 ? nibble - 10 + 'a' : nibble + '0';
-	    if (!len) break;
-	    v >>= 4;
-	}
-	++i;
+        unsigned int v = self->e[i];
+        for (unsigned int j = 0; j < HUGEINT_ELEMENT_BITS / 4; ++j)
+        {
+            unsigned char nibble = v & 0xf;
+            result[--len] = nibble > 9 ? nibble - 10 + 'a' : nibble + '0';
+            if (!len) break;
+            v >>= 4;
+        }
+        ++i;
     }
     return result;
 }
