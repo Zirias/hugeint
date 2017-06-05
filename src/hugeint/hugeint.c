@@ -498,6 +498,25 @@ void hugeint_addToSelf(hugeint **self, const hugeint *other)
     }
 }
 
+void hugeint_addUintToSelf(hugeint **self, unsigned int other)
+{
+    (*self)->e[0] += other;
+    if ((*self)->e[0] < other)
+    {
+        unsigned int carry = 1;
+        for (size_t i = 1; i < (*self)->n; ++i)
+        {
+            (*self)->e[i] = (*self)->e[i] + carry;
+            carry = carry && !(*self)->e[i];
+        }
+        if (carry)
+        {
+            *self = hugeint_scale(*self, (*self)->n + 1);
+            (*self)->e[(*self)->n - 1] = 1;
+        }
+    }
+}
+
 void hugeint_subFromSelf(hugeint **self, const hugeint *other)
 {
     if (hugeint_isZero(other)) return;
@@ -524,6 +543,35 @@ void hugeint_subFromSelf(hugeint **self, const hugeint *other)
         if (!carry || (*self)->e[i]) carry = nextCarry;
     }
     hugeint_autoscale(self);
+}
+
+void hugeint_subUintFromSelf(hugeint **self, unsigned int other)
+{
+    if (!other) return;
+    if ((*self)->n == 1)
+    {
+        if ((*self)->e[0] < other)
+        {
+            free(*self);
+            *self = 0;
+            return;
+        }
+        else if ((*self)->e[0] == other)
+        {
+            (*self)->e[0] = 0;
+            return;
+        }
+    }
+    unsigned int v = (*self)->e[0] + ~other;
+    unsigned int carry = v < ~other;
+    ++(*self)->e[0];
+    for (size_t i = 1; i < (*self)->n; ++i)
+    {
+        (*self)->e[i] += ~0U + carry;
+        carry = carry && !(*self)->e[i];
+    }
+    hugeint_autoscale(self);
+
 }
 
 void hugeint_shiftLeft(hugeint **self, size_t positions)

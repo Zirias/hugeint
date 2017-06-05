@@ -24,7 +24,9 @@ int hugeint_compareUint(const hugeint *self, unsigned int other);
 void hugeint_increment(hugeint **self);
 void hugeint_decrement(hugeint **self);
 void hugeint_addToSelf(hugeint **self, const hugeint *other);
+void hugeint_addUintToSelf(hugeint **self, unsigned int other);
 void hugeint_subFromSelf(hugeint **self, const hugeint *other);
+void hugeint_subUintFromSelf(hugeint **self, unsigned int other);
 void hugeint_shiftLeft(hugeint **self, size_t positions);
 void hugeint_shiftRight(hugeint **self, size_t positions);
 
